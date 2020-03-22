@@ -55,7 +55,17 @@ type Miner = Address
 type Nonce = Word32
 
 mineBlock :: Miner -> Hash -> [Transaction] -> Block
-mineBlock miner parent txs = undefined
+mineBlock miner parent txs = let
+        getCorrectBlockHeader :: Hash -> Transaction -> Hash -> Hash -> BlockHeader
+        getCorrectBlockHeader p c tx n
+            | validNonce (BlockHeader p c tx n) = BlockHeader p c tx n
+            | otherwise = getCorrectBlockHeader p c tx (n + 1)
+        
+        cb = coinbaseTx miner
+        txr = treeHash $ buildTree (cb:txs)
+        header = getCorrectBlockHeader parent cb txr 0
+    in Block header txs
+        
 
 genesis = block0
 block0 = mineBlock (hash "Satoshi") 0 []
@@ -71,15 +81,20 @@ chain = [block2, block1, block0]
 -- Just 0x0dbea380
 
 validChain :: [Block] -> Bool
-validChain = undefined
+validChain = (Nothing /=) . verifyChain
 
 verifyChain :: [Block] -> Maybe Hash
-verifyChain = undefined
+verifyChain [] = Nothing
+verifyChain [b] = verifyBlock b 0
+verifyChain (b1:b2:t) = do
+    verifyChain (b2:t)
+    verifyBlock b1 (hash b2)
 
 verifyBlock :: Block -> Hash -> Maybe Hash
 verifyBlock b@(Block hdr txs) parentHash = do
     guard (parent hdr == parentHash)
     guard (txroot hdr == treeHash (buildTree (coinbase hdr:txs)))
+    guard (validNonce hdr)
     return (hash b)
 
 
@@ -102,7 +117,7 @@ data TransactionReceipt = TxReceipt
 
 validateReceipt :: TransactionReceipt -> BlockHeader -> Bool
 validateReceipt r hdr = txrBlock r == hash hdr
-                                                && verifyProof (txroot hdr) (txrProof r)
+                        && verifyProof (txroot hdr) (txrProof r)
 
 mineTransactions :: Miner -> Hash -> [Transaction] -> (Block, [TransactionReceipt])
 mineTransactions miner parent txs = undefined
@@ -141,11 +156,11 @@ Tx# 0x085e2467 from: 0x790251e0 to: 0xb1011705 amount: 1000
 pprHeader :: BlockHeader -> ShowS
 pprHeader self@(BlockHeader parent cb txroot nonce)
     = pprV [ p ("hash", VH $ hash self)
-                 , p ("parent", VH $ parent)
-                 , p ("miner", VH $ txTo cb)
-                 , p ("root", VH txroot)
-                 , p ("nonce", nonce)
-                 ]
+            , p ("parent", VH $ parent)
+            , p ("miner", VH $ txTo cb)
+            , p ("root", VH txroot)
+            , p ("nonce", nonce)
+            ]
     where
         nl = showString "\n"
         p :: Show a => (String, a) -> ShowS

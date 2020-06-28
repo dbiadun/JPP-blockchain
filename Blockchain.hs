@@ -113,14 +113,27 @@ True
 -}
 
 data TransactionReceipt = TxReceipt
-    {  txrBlock :: Hash, txrProof :: MerkleProof Transaction } deriving Show
+    { txrBlock :: Hash, txrProof :: MerkleProof Transaction } deriving Show
 
 validateReceipt :: TransactionReceipt -> BlockHeader -> Bool
 validateReceipt r hdr = txrBlock r == hash hdr
                         && verifyProof (txroot hdr) (txrProof r)
 
 mineTransactions :: Miner -> Hash -> [Transaction] -> (Block, [TransactionReceipt])
-mineTransactions miner parent txs = undefined
+mineTransactions miner parent txs = let
+        removeMaybe :: Maybe a -> a
+        removeMaybe (Just a) = a
+        removeMaybe Nothing = error "Unexpected Nothing"
+
+        createReceipt :: Hash -> Tree Transaction -> Transaction -> TransactionReceipt
+        createReceipt h t tx = TxReceipt h $ removeMaybe $ buildProof tx t
+
+        block = mineBlock miner parent txs
+        blockHash = hash block
+        tree = buildTree (coinbase (blockHdr block):txs)
+        receipts = map (createReceipt blockHash tree) txs
+    in (block, receipts)
+
 
 {- | Pretty printing
 >>> runShows $ pprBlock block2

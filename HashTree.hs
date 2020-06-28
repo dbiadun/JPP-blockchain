@@ -81,7 +81,7 @@ showMerklePath path = let
 
 
 instance Show a => Show (MerkleProof a) where
-    showsPrec 0 (MerkleProof value path) = ("MerkleProof " ++) . shows value . (" " ++) . ((showMerklePath path) ++)
+    showsPrec 0 (MerkleProof value path) = ("MerkleProof " ++) . showsPrec 11 value . (" " ++) . ((showMerklePath path) ++)
     showsPrec _ proof = ('(':) . showsPrec 0 proof . (')':)
 
 
